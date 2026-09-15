@@ -9,6 +9,7 @@ import {
     enclosingBlockNames,
     findBlockElements,
     findMarkedElement,
+    hideOverlayOnPageInteraction,
     startBlockPicking,
     unionRect,
 } from './block-inspector-dom';
@@ -173,6 +174,35 @@ describe('adapter/view/block-inspector/block-inspector-dom', () => {
             expect(document.querySelector<HTMLElement>('.sw-block-inspector-overlay')!.hidden).toBe(true);
 
             overlay.destroy();
+        });
+    });
+
+    describe('hiding on page interaction', () => {
+        it('hides the overlay on Escape and on a pointer press, unless blocked, until disposed', () => {
+            render('<div id="target"></div>');
+            const overlay = { hide: jest.fn() };
+            let blocked = false;
+            const dispose = hideOverlayOnPageInteraction(overlay, { unless: () => blocked });
+
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+
+            expect(overlay.hide).not.toHaveBeenCalled();
+
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+            document.getElementById('target')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+
+            expect(overlay.hide).toHaveBeenCalledTimes(2);
+
+            blocked = true;
+            document.getElementById('target')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+
+            expect(overlay.hide).toHaveBeenCalledTimes(2);
+
+            blocked = false;
+            dispose();
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+            expect(overlay.hide).toHaveBeenCalledTimes(2);
         });
     });
 

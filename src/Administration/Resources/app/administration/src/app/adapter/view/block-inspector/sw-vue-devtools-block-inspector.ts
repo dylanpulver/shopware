@@ -33,6 +33,7 @@ import {
     createBlockOverlay,
     enclosingBlockNames,
     findBlockElements,
+    hideOverlayOnPageInteraction,
     startBlockPicking,
 } from './block-inspector-dom';
 import { blockNameFromNodeId, buildBlockTree, pickedNodeId, type BlockPick, type TreeBlock } from './block-inspector-tree';
@@ -130,6 +131,10 @@ export default function setupBlockInspector(api: DevtoolsPluginApi<unknown>): vo
     let generation = 0;
     let pick: BlockPick | null = null;
 
+    // The devtools never report that their panel closed, so a click or Escape in the page removes
+    // the highlight instead. While picking, the picker owns the overlay.
+    hideOverlayOnPageInteraction(overlay, { unless: () => stopPicking !== null });
+
     const highlightBlock = (blockName: string): void => {
         overlay.show(blockName, findBlockElements(blockName));
     };
@@ -182,7 +187,8 @@ export default function setupBlockInspector(api: DevtoolsPluginApi<unknown>): vo
             },
             {
                 icon: 'flash_off',
-                tooltip: 'Remove the highlight and the picked block',
+                tooltip:
+                    'Remove the highlight and the picked block (a click or Escape in the page also removes the highlight)',
                 action: (): void => {
                     stopPicking?.();
                     overlay.hide();

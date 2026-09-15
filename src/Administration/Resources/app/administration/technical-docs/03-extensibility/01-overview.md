@@ -186,7 +186,7 @@ Extension authors can type-check and lint their Administration code against the 
 Twig blocks disappear once a template is rendered, so the DOM alone does not tell which block a piece of UI belongs to. The Shopware devtools plugin (development mode, Vue devtools browser extension) ships an inspector named **Shopware Extension Blocks** for exactly that, the block counterpart of the position identifier inspector for apps:
 
 - The tree lists every block currently rendered, grouped by the component that owns it, tagged as `twig` or `native` and as `extended` when an override or a native extension already targets it.
-- Selecting a block frames it in the page with a label such as `{% block sw_product_detail_base_price_form %}`.
+- Selecting a block frames it in the page with a label such as `{% block sw_product_detail_base_price_form %}`. The devtools do not tell a plugin when their panel closes, so a click or Escape in the page removes the frame.
 - The pick action lets you click on any part of the page to select the innermost block underneath it. The click never reaches the page; Escape cancels. The picked block then appears as the first entry of the tree, tagged `picked`, with the blocks enclosing it listed below, and the tree jumps to it. Vue devtools v6 select and scroll to it directly; devtools v7 offer no way for a plugin to select a node, so the inspector relies on the tree falling back to its first entry after a pick.
 - The state panel shows the owning component, the enclosing blocks, how many Twig overrides and native `<sw-block extends>` target the block, and copy-ready snippets for both extension styles.
 

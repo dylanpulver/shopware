@@ -245,6 +245,50 @@ export function createBlockOverlay(doc: Document = document): BlockOverlay {
 }
 
 /**
+ * @private
+ */
+export type OverlayDismissalOptions = {
+    /** Keeps the overlay while this returns true, for example during picking. */
+    unless?: () => boolean;
+};
+
+/**
+ * Hides the overlay as soon as the developer interacts with the page: on Escape or on a pointer
+ * press anywhere. Neither devtools generation tells a plugin when its panel closes, so a highlight
+ * would otherwise stay until something else replaces it. Returns a function that removes the
+ * listeners.
+ *
+ * @private
+ */
+export function hideOverlayOnPageInteraction(
+    overlay: Pick<BlockOverlay, 'hide'>,
+    options: OverlayDismissalOptions = {},
+    doc: Document = document,
+): () => void {
+    const hide = (): void => {
+        if (options.unless?.()) {
+            return;
+        }
+
+        overlay.hide();
+    };
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+        if (event.key === 'Escape') {
+            hide();
+        }
+    };
+
+    doc.addEventListener('keydown', onKeyDown, true);
+    doc.addEventListener('pointerdown', hide, true);
+
+    return () => {
+        doc.removeEventListener('keydown', onKeyDown, true);
+        doc.removeEventListener('pointerdown', hide, true);
+    };
+}
+
+/**
  * What the picker reports while the pointer moves and when a block is picked.
  *
  * @private
