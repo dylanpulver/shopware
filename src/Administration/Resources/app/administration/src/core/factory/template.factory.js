@@ -8,6 +8,7 @@ import { cloneDeep } from 'src/core/service/utils/object.utils';
 import transformNativeLegacyBlockConditionals from './transform-legacy-block-conditionals';
 import { reconnectCrossBlockConditionals } from './reconnect-cross-block-conditionals';
 import { getNativeBlockExtensionTargets } from './native-extension-targets';
+import { installTwigBlockMarker, renderForBlockInspection } from './block-inspector';
 
 /**
  * @module core/factory/async-template
@@ -83,6 +84,9 @@ Twig.extend((TwigCore) => {
     TwigCore.exports.clearRegistry = function clearRegistry() {
         TwigCore.Templates.registry = {};
     };
+
+    /** Development-only: lets every rendered block mark its elements for the block inspector. */
+    installTwigBlockMarker(TwigCore);
 
     TwigTemplates = TwigCore.Templates;
     TwigCore.cache = false;
@@ -510,18 +514,19 @@ function wrapNativeBlockTargets(tokens) {
  * The wrapped tokens are swapped in for the render only. Components that extend this one inherit its
  * tokens, so a persisted wrapper would be inherited too and wrapped a second time.
  */
-function renderWithNativeBlocks(template, templateVars) {
+function renderWithNativeBlocks(template, templateVars, componentName) {
     const originalTokens = template.tokens;
     const wrappedTokens = wrapNativeBlockTargets(originalTokens);
+    const render = () => renderForBlockInspection(componentName, () => template.render(templateVars));
 
     if (wrappedTokens === originalTokens) {
-        return template.render(templateVars);
+        return render();
     }
 
     template.tokens = wrappedTokens;
 
     try {
-        return template.render(templateVars);
+        return render();
     } finally {
         template.tokens = originalTokens;
     }
@@ -533,7 +538,7 @@ function applyTemplateOverrides(name) {
 
     if (!item.overrides.length) {
         // Render the final rendered output with all overridden blocks
-        const finalHtml = renderWithNativeBlocks(item.template, templateVars);
+        const finalHtml = renderWithNativeBlocks(item.template, templateVars, item.name);
 
         // Update item which will be written to the registry
         const updatedTemplate = {
@@ -564,7 +569,7 @@ function applyTemplateOverrides(name) {
     let updatedTemplate = normalizedTemplateRegistry.get(item.name);
 
     // Render the final rendered output with all overridden blocks
-    const finalHtml = renderWithNativeBlocks(updatedTemplate.template, templateVars);
+    const finalHtml = renderWithNativeBlocks(updatedTemplate.template, templateVars, updatedTemplate.name);
 
     // Update item which will written to the registry
     updatedTemplate = {
