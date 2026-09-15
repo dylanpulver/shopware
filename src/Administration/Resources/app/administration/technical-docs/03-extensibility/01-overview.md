@@ -187,9 +187,9 @@ Twig blocks disappear once a template is rendered, so the DOM alone does not tel
 
 - The tree lists every block currently rendered, grouped by the component that owns it, tagged as `twig` or `native` and as `extended` when an override or a native extension already targets it.
 - Selecting a block frames it in the page with a label such as `{% block sw_product_detail_base_price_form %}`.
-- The pick action lets you click on any part of the page to select the innermost block underneath it. The click never reaches the page; Escape cancels.
+- The pick action lets you click on any part of the page to select the innermost block underneath it. The click never reaches the page; Escape cancels. The picked block then appears as the first entry of the tree, tagged `picked`, with the blocks enclosing it listed below, and the tree jumps to it. Vue devtools v6 select and scroll to it directly; devtools v7 offer no way for a plugin to select a node, so the inspector relies on the tree falling back to its first entry after a pick.
 - The state panel shows the owning component, the enclosing blocks, how many Twig overrides and native `<sw-block extends>` target the block, and copy-ready snippets for both extension styles.
 
 The inspector needs `data-sw-block` markers on the rendered elements. Marking changes the compiled templates and is therefore opt-in and off by default: use the power action of the inspector, or run `localStorage.setItem('sw-admin-block-inspector', 'true')` in the console, then reload. The markers are never rendered in production builds.
 
-Implementation: `src/core/factory/block-inspector.ts` marks the rendered output of every Twig `{% block %}` through Twig's block handler, `sw-block` marks its rendered roots, and `src/app/adapter/view/block-inspector/` contains the DOM logic and the devtools glue.
+Implementation: `src/core/factory/block-inspector.ts` marks the rendered output of every Twig `{% block %}` through Twig's block handler, `sw-block` marks its rendered roots, and `src/app/adapter/view/block-inspector/` contains the DOM logic, the tree building and the devtools glue.

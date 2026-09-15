@@ -256,7 +256,7 @@ Store API responses requested with the `sw-include-seo-urls` header now also inc
 
 ### Extension block inspector in the Vue devtools
 
-The Shopware devtools plugin gets a second inspector, "Shopware Extension Blocks". It lists the Twig blocks and native `<sw-block>` extension points that are currently rendered, grouped by component, highlights the selected block in the page and picks a block by clicking on it, the same way the existing inspector finds position identifiers. The state panel shows the owning component, how many Twig overrides and native extensions target the block, and copy-ready snippets for both extension styles.
+The Shopware devtools plugin gets a second inspector, "Shopware Extension Blocks". It lists the Twig blocks and native `<sw-block>` extension points that are currently rendered, grouped by component, highlights the selected block in the page and picks a block by clicking on it, the same way the existing inspector finds position identifiers. A picked block moves to the top of the tree together with the blocks enclosing it. The state panel shows the owning component, how many Twig overrides and native extensions target the block, and copy-ready snippets for both extension styles.
 
 The inspector reads `data-sw-block` markers that the Administration renders only in development mode and only after opting in: use the power action of the inspector, or set `localStorage.setItem('sw-admin-block-inspector', 'true')` and reload.
 

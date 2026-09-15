@@ -1,6 +1,6 @@
 /* istanbul ignore file */
 
-/* Vue devtools plugins couldn't be tested well yet; the DOM logic lives in block-inspector-dom.ts and is tested there. */
+/* Vue devtools plugins couldn't be tested well yet; the DOM and tree logic live in block-inspector-dom.ts and block-inspector-tree.ts and are tested there. */
 /**
  * @sw-package framework
  * @private
@@ -16,7 +16,7 @@
  * power action takes care of.
  */
 
-import type { CustomInspectorNode, CustomInspectorState } from '@vue/devtools-api';
+import type { CustomInspectorState } from '@vue/devtools-api';
 import type { DevtoolsPluginApi } from '@vue/devtools-api/lib/esm/api/api';
 import TemplateFactory from 'src/core/factory/template.factory';
 import { getBlockEntries } from 'src/core/factory/twig-block-index';
@@ -35,30 +35,17 @@ import {
     findBlockElements,
     startBlockPicking,
 } from './block-inspector-dom';
+import { blockNameFromNodeId, buildBlockTree, pickedNodeId, type BlockPick, type TreeBlock } from './block-inspector-tree';
 
 /**
  * @private
  */
 export const BLOCK_INSPECTOR_ID = 'sw-admin-extension-block-inspector';
 
-const BLOCK_NODE_PREFIX = 'block:';
-const COMPONENT_NODE_PREFIX = 'component:';
 const DISABLED_NODE_ID = 'disabled';
 const TREE_REFRESH_DELAY = 300;
 
-const TAG_TWIG = { label: 'twig', textColor: 0xffffff, backgroundColor: 0x189eff };
-const TAG_NATIVE = { label: 'native', textColor: 0xffffff, backgroundColor: 0x37d046 };
-const TAG_EXTENDED = { label: 'extended', textColor: 0xffffff, backgroundColor: 0xde294c };
-
 type TemplateOverride = { raw: string | null };
-
-function blockNodeId(blockName: string): string {
-    return `${BLOCK_NODE_PREFIX}${blockName}`;
-}
-
-function blockNameFromNodeId(nodeId: string): string | null {
-    return nodeId.startsWith(BLOCK_NODE_PREFIX) ? nodeId.slice(BLOCK_NODE_PREFIX.length) : null;
-}
 
 function describeBlock(blockName: string): InspectedBlock {
     return getInspectedBlock(blockName) ?? { name: blockName, component: 'unknown', kind: 'native' };
@@ -98,51 +85,12 @@ function nativeSnippet(block: InspectedBlock): string {
     ].join('\n');
 }
 
-function buildTree(filter: string): CustomInspectorNode[] {
-    if (!isBlockInspectorEnabled()) {
-        return [
-            {
-                id: DISABLED_NODE_ID,
-                label: 'Block markers are off - use the power action above to enable them and reload',
-            },
-        ];
-    }
-
-    const query = filter.trim().toLowerCase();
-    const componentNodes = new Map<string, CustomInspectorNode>();
-
-    collectMarkedBlocks().forEach((_, blockName) => {
+function collectTreeBlocks(): TreeBlock[] {
+    return Array.from(collectMarkedBlocks().keys()).map((blockName) => {
         const block = describeBlock(blockName);
 
-        if (query && !blockName.toLowerCase().includes(query) && !block.component.toLowerCase().includes(query)) {
-            return;
-        }
-
-        let componentNode = componentNodes.get(block.component);
-
-        if (!componentNode) {
-            componentNode = {
-                id: `${COMPONENT_NODE_PREFIX}${block.component}`,
-                label: block.component,
-                children: [],
-            };
-            componentNodes.set(block.component, componentNode);
-        }
-
-        const tags = [block.kind === 'twig' ? TAG_TWIG : TAG_NATIVE];
-
-        if (isExtended(block)) {
-            tags.push(TAG_EXTENDED);
-        }
-
-        componentNode.children?.push({
-            id: blockNodeId(blockName),
-            label: blockName,
-            tags,
-        });
+        return { ...block, extended: isExtended(block) };
     });
-
-    return Array.from(componentNodes.values());
 }
 
 function buildState(blockName: string): CustomInspectorState {
@@ -179,6 +127,8 @@ export default function setupBlockInspector(api: DevtoolsPluginApi<unknown>): vo
     const overlay = createBlockOverlay();
     let stopPicking: (() => void) | null = null;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let generation = 0;
+    let pick: BlockPick | null = null;
 
     const highlightBlock = (blockName: string): void => {
         overlay.show(blockName, findBlockElements(blockName));
@@ -194,9 +144,15 @@ export default function setupBlockInspector(api: DevtoolsPluginApi<unknown>): vo
                     overlay.hide();
                 }
             },
-            onPick(blockName) {
+            onPick(blockName, element) {
+                // New generation: every node id changes, so the tree drops its old selection and
+                // lands on the picked block, which is sent as the first root node.
+                generation += 1;
+                pick = { blockName, enclosingBlockNames: enclosingBlockNames(element.parentElement) };
+
                 api.sendInspectorTree(BLOCK_INSPECTOR_ID);
-                api.selectInspectorNode(BLOCK_INSPECTOR_ID, blockNodeId(blockName));
+                // Devtools v6 select and scroll through this call; v7 ignore it and rely on the tree.
+                api.selectInspectorNode(BLOCK_INSPECTOR_ID, pickedNodeId(blockName, generation));
                 highlightBlock(blockName);
             },
             onStop() {
@@ -226,10 +182,12 @@ export default function setupBlockInspector(api: DevtoolsPluginApi<unknown>): vo
             },
             {
                 icon: 'flash_off',
-                tooltip: 'Remove the highlight',
+                tooltip: 'Remove the highlight and the picked block',
                 action: (): void => {
                     stopPicking?.();
                     overlay.hide();
+                    pick = null;
+                    api.sendInspectorTree(BLOCK_INSPECTOR_ID);
                 },
             },
         ],
@@ -240,7 +198,18 @@ export default function setupBlockInspector(api: DevtoolsPluginApi<unknown>): vo
             return;
         }
 
-        payload.rootNodes = buildTree(payload.filter ?? '');
+        if (!isBlockInspectorEnabled()) {
+            payload.rootNodes = [
+                {
+                    id: DISABLED_NODE_ID,
+                    label: 'Block markers are off - use the power action above to enable them and reload',
+                },
+            ];
+
+            return;
+        }
+
+        payload.rootNodes = buildBlockTree(collectTreeBlocks(), { filter: payload.filter, generation, pick });
     });
 
     api.on.getInspectorState((payload) => {
